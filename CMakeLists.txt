@@ -1,0 +1,124 @@
+project(Poco C CXX)
+cmake_minimum_required(VERSION 2.8.9)
+
+# Set the Global CMake Variables
+set(CMAKE_SUPPRESS_REGENERATION ON)
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/../CMake)
+set(CMAKE_DEBUG_POSTFIX "")
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+# Bind the bootstrap script arguments
+include(${CMAKE_MODULE_PATH}/Bootstrap.cmake)
+
+# Special Poco crap
+add_definitions(-DPOCO_NO_AUTOMATIC_LIBS)
+
+macro(pwnt_add_poco_target)	
+	get_filename_component(PROJECT_TARGET ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+	parse_arguments(PROJECT_COMPONENT "DEPENDENCIES;INSTALL_COMPONENT;NAME" "EXECUTABLE;SHARED_LIBRARY;STATIC_LIBRARY" ${ARGN})
+	string(TOUPPER ${PROJECT_TARGET} PROJECT_TARGET_UPPER)	
+	message(STATUS "Configuring ${PROJECT_TARGET}")
+	
+	# Gather all of the project files
+	file(GLOB_RECURSE PWNT_${PROJECT_TARGET_UPPER}_HEADERS "${PWNT_PROJECT_INCLUDE_DIR_NAME}/*.h")
+	file(GLOB_RECURSE PWNT_${PROJECT_TARGET_UPPER}_HEADERS "${PWNT_PROJECT_SOURCE_DIR_NAME}/*.h")
+	file(GLOB_RECURSE PWNT_${PROJECT_TARGET_UPPER}_SOURCES "${PWNT_PROJECT_SOURCE_DIR_NAME}/*.c*")
+	file(GLOB_RECURSE PWNT_${PROJECT_TARGET_UPPER}_MESSAGES "${PWNT_PROJECT_SOURCE_DIR_NAME}/*.mc*")
+	
+	# Compile the messsages
+	if(WIN32)
+		foreach(MESSAGE_FILE ${PWNT_${PROJECT_TARGET_UPPER}_MESSAGES})
+			get_filename_component(MESSAGE_FILE_FILE_NAME ${MESSAGE_FILE} NAME_WE)
+			set(MESSAGE_FILE_HEADER ${CMAKE_CURRENT_BINARY_DIR}/${MESSAGE_FILE_FILE_NAME}.h)
+			set(MESSAGE_FILE_RESOURCE ${CMAKE_CURRENT_BINARY_DIR}/${MESSAGE_FILE_FILE_NAME}.rc)
+			add_custom_command(OUTPUT  ${MESSAGE_FILE_HEADER} ${MESSAGE_FILE_RESOURCE}
+							   MAIN_DEPENDENCY ${MESSAGE_FILE} 
+							   COMMAND mc.exe -h ${CMAKE_CURRENT_BINARY_DIR} -r ${CMAKE_CURRENT_BINARY_DIR} ${MESSAGE_FILE} VERBATIM)
+		    list(APPEND PWNT_${PROJECT_TARGET_UPPER}_HEADERS ${MESSAGE_FILE_HEADER})
+			list(APPEND PWNT_${PROJECT_TARGET_UPPER}_RESOURCES ${MESSAGE_FILE_RESOURCE})
+		endforeach()
+		set_source_files_properties(${PWNT_${PROJECT_TARGET_UPPER}_RESOURCES} PROPERTIES LANGUAGE RC)
+	endif()
+
+	# Remove platform specific implementations
+	foreach(SOURCE_FILE ${PWNT_${PROJECT_TARGET_UPPER}_SOURCES})
+		string(REGEX MATCH "_C99|_DEC|_DUMMY|_SUN|_WIN32|_POSIX|_UNIX|_VX|_VMS|_WIN32U|_WINCE|_HPUX|_Android|_STD|OpcomChannel|SyslogChannel" SOURCE_FILE_MATCHED ${SOURCE_FILE})
+		if(SOURCE_FILE_MATCHED)
+			list(APPEND PLATFORM_SPECIFIC_SOURCES ${SOURCE_FILE})
+		endif()
+	endforeach()
+	foreach(PLATFORM_SPECIFIC_SOURCE_FILE ${PLATFORM_SPECIFIC_SOURCES})
+		list(REMOVE_ITEM PWNT_${PROJECT_TARGET_UPPER}_SOURCES ${PLATFORM_SPECIFIC_SOURCE_FILE})
+	endforeach()
+	
+	# Specify the filters
+	source_group("Header Files" FILES ${PWNT_${PROJECT_TARGET_UPPER}_HEADERS})
+	source_group("Source Files" FILES ${PWNT_${PROJECT_TARGET_UPPER}_SOURCES})
+	source_group("Message Files" FILES ${PWNT_${PROJECT_TARGET_UPPER}_MESSAGES})
+	source_group("Resource Files" FILES ${PWNT_${PROJECT_TARGET_UPPER}_RESOURCES})
+
+	# Make sure that the output from the code generators is added to the include directories
+	set(PWNT_${PROJECT_TARGET_UPPER}_INCLUDE_DIR ${PWNT_${PROJECT_TARGET_UPPER}_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR} PARENT_SCOPE) 
+	
+	# Add the include directory
+	include_directories(${PWNT_${PROJECT_TARGET_UPPER}_INCLUDE_DIR})
+
+	# Gather/compile the specification files
+	pwnt_add_specifications()
+	
+	# Add the project target
+	if(${PROJECT_COMPONENT_EXECUTABLE})
+		add_executable(${PROJECT_TARGET} ${PWNT_${PROJECT_TARGET_UPPER}_HEADERS} ${PWNT_${PROJECT_TARGET_UPPER}_SOURCES} ${PWNT_${PROJECT_TARGET_UPPER}_OBJ_OUTPUT})
+		set_target_properties(${PROJECT_TARGET} PROPERTIES ENABLE_EXPORTS ON)
+		set_target_properties(${PROJECT_TARGET} PROPERTIES COMPILE_FLAGS "-D${PROJECT_TARGET}_EXPORTS")
+	elseif(${PROJECT_COMPONENT_SHARED_LIBRARY})
+		add_library(${PROJECT_TARGET} SHARED ${PWNT_${PROJECT_TARGET_UPPER}_HEADERS} ${PWNT_${PROJECT_TARGET_UPPER}_SOURCES} ${PWNT_${PROJECT_TARGET_UPPER}_OBJ_OUTPUT})
+		set_target_properties(${PROJECT_TARGET} PROPERTIES COMPILE_FLAGS "-D${PROJECT_TARGET}_EXPORTS")
+	elseif(${PROJECT_COMPONENT_STATIC_LIBRARY})
+		add_library(${PROJECT_TARGET} STATIC ${PWNT_${PROJECT_TARGET_UPPER}_HEADERS} ${PWNT_${PROJECT_TARGET_UPPER}_SOURCES} ${PWNT_${PROJECT_TARGET_UPPER}_OBJ_OUTPUT})
+		set_target_properties(${PROJECT_TARGET} PROPERTIES COMPILE_FLAGS "-DPOCO_STATIC -DXML_STATIC")
+	else()
+		message(FATAL_ERROR "Specify a target type when using the pwnt_add_target() macro. Use either EXECUTABLE, SHARED_LIBRARY, or STATIC_LIBRARY")	
+	endif()	
+	
+	# If specified, use the given name
+	if(${PROJECT_COMPONENT_NAME})
+		set_target_properties(${PROJECT_TARGET} PROPERTIES OUTPUT_NAME "${PROJECT_COMPONENT_NAME}")
+	endif()
+	
+	# Set the target version
+	set_target_properties(${PROJECT_TARGET} PROPERTIES VERSION "${PWNT_PROJECT_VERSION}")
+	
+	# Link the project target
+	pwnt_add_dependencies(${PROJECT_TARGET} ${PROJECT_COMPONENT_DEPENDENCIES})
+	
+	# Add the project's python bindings target
+	pwnt_add_bindings(${PROJECT_TARGET} ${PROJECT_COMPONENT_DEPENDENCIES})
+	
+	# Add the test target
+	pwnt_add_test(${PROJECT_TARGET} ${PROJECT_COMPONENT_DEPENDENCIES})
+
+	# Install
+	if(PWNT_INSTALL AND PROJECT_TARGET_INSTALL_COMPONENT) 
+		install(TARGETS ${PROJECT_TARGET} RUNTIME DESTINATION "bin/" LIBRARY DESTINATION "lib/" COMPONENT ${PROJECT_COMPONENT_INSTALL_COMPONENT})
+	endif()
+endmacro()
+
+
+# Add the directories
+set(PWNT_PROJECT_DIRECTORIES "Foundation;JSON;Net;Util;XML")
+
+# Get the include directory variables
+foreach(SUBDIR ${PWNT_PROJECT_DIRECTORIES})
+	string(TOUPPER ${SUBDIR} SUBDIR_UPPER)	
+	set(PWNT_${SUBDIR_UPPER}_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/${SUBDIR}/${PWNT_PROJECT_INCLUDE_DIR_NAME}")
+endforeach()
+
+# Execute the scripts per directory
+foreach(SUBDIR ${PWNT_PROJECT_DIRECTORIES})
+	if(${BOOTSTRAP_PROJECT} STREQUAL ${SUBDIR} OR ${BOOTSTRAP_PROJECT} STREQUAL "All")
+		add_subdirectory(${SUBDIR})
+	else()
+		add_subdirectory(${SUBDIR} EXCLUDE_FROM_ALL)
+	endif()
+endforeach()

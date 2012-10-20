@@ -1,0 +1,1 @@
+pwnt_add_poco_target(STATIC_LIBRARY INSTALL_COMPONENT Poco)
