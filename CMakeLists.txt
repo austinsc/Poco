@@ -4,11 +4,11 @@ cmake_minimum_required(VERSION 2.8.9)
 # Set the Global CMake Variables
 set(CMAKE_SUPPRESS_REGENERATION ON)
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/../CMake)
-set(CMAKE_DEBUG_POSTFIX "")
+set(CMAKE_DEBUG_POSTFIX d)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 # Bind the bootstrap script arguments
-include(${CMAKE_MODULE_PATH}/Bootstrap.cmake)
+include(PwntBootstrap)
 
 # Special Poco crap
 add_definitions(-DPOCO_NO_AUTOMATIC_LIBS)

@@ -1,0 +1,1 @@
+@setlocal enableextensions & python ./../CMake/bootstrap.py %*
