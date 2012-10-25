@@ -4,3 +4,6 @@ lib/
 stage/
 *.user
 *.log
+*.tlog
+Debug/
+Release/
