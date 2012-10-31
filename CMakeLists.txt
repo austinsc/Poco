@@ -11,7 +11,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 include(PwntBootstrap)
 
 # Special Poco crap
-add_definitions(-DPOCO_NO_AUTOMATIC_LIBS)
+add_definitions(-DPOCO_NO_AUTOMATIC_LIBS -DPCRE_STATIC)
 
 macro(pwnt_add_poco_target)	
 	get_filename_component(PROJECT_TARGET ${CMAKE_CURRENT_SOURCE_DIR} NAME)
@@ -21,9 +21,11 @@ macro(pwnt_add_poco_target)
 	
 	# Gather all of the project files
 	file(GLOB_RECURSE PWNT_${PROJECT_TARGET_UPPER}_HEADERS "${PWNT_PROJECT_INCLUDE_DIR_NAME}/*.h")
-	file(GLOB_RECURSE PWNT_${PROJECT_TARGET_UPPER}_HEADERS "${PWNT_PROJECT_SOURCE_DIR_NAME}/*.h")
+	file(GLOB_RECURSE PWNT_${PROJECT_TARGET_UPPER}_HEADERS2 "${PWNT_PROJECT_SOURCE_DIR_NAME}/*.h")
 	file(GLOB_RECURSE PWNT_${PROJECT_TARGET_UPPER}_SOURCES "${PWNT_PROJECT_SOURCE_DIR_NAME}/*.c*")
 	file(GLOB_RECURSE PWNT_${PROJECT_TARGET_UPPER}_MESSAGES "${PWNT_PROJECT_SOURCE_DIR_NAME}/*.mc*")
+	
+	list(APPEND PWNT_${PROJECT_TARGET_UPPER}_HEADERS ${PWNT_${PROJECT_TARGET_UPPER}_HEADERS2})
 	
 	# Compile the messsages
 	if(WIN32)
@@ -42,7 +44,7 @@ macro(pwnt_add_poco_target)
 
 	# Remove platform specific implementations
 	foreach(SOURCE_FILE ${PWNT_${PROJECT_TARGET_UPPER}_SOURCES})
-		string(REGEX MATCH "_C99|_DEC|_DUMMY|_SUN|_WIN32|_POSIX|_UNIX|_VX|_VMS|_WIN32U|_WINCE|_HPUX|_Android|_STD|OpcomChannel|SyslogChannel" SOURCE_FILE_MATCHED ${SOURCE_FILE})
+		string(REGEX MATCH "_C99|_DEC|_DUMMY|_SUN|_WIN32|_POSIX|_UNIX|_VX|_VMS|_WIN32U|_WINCE|_HPUX|_Android|_STD|Opcom|Syslog" SOURCE_FILE_MATCHED ${SOURCE_FILE})
 		if(SOURCE_FILE_MATCHED)
 			list(APPEND PLATFORM_SPECIFIC_SOURCES ${SOURCE_FILE})
 		endif()
@@ -63,9 +65,6 @@ macro(pwnt_add_poco_target)
 	# Add the include directory
 	include_directories(${PWNT_${PROJECT_TARGET_UPPER}_INCLUDE_DIR})
 
-	# Gather/compile the specification files
-	pwnt_add_specifications()
-	
 	# Add the project target
 	if(${PROJECT_COMPONENT_EXECUTABLE})
 		add_executable(${PROJECT_TARGET} ${PWNT_${PROJECT_TARGET_UPPER}_HEADERS} ${PWNT_${PROJECT_TARGET_UPPER}_SOURCES} ${PWNT_${PROJECT_TARGET_UPPER}_OBJ_OUTPUT})
@@ -90,14 +89,15 @@ macro(pwnt_add_poco_target)
 	set_target_properties(${PROJECT_TARGET} PROPERTIES VERSION "${PWNT_PROJECT_VERSION}")
 	
 	# Link the project target
-	pwnt_add_dependencies(${PROJECT_TARGET} ${PROJECT_COMPONENT_DEPENDENCIES})
-	
-	# Add the project's python bindings target
-	pwnt_add_bindings(${PROJECT_TARGET} ${PROJECT_COMPONENT_DEPENDENCIES})
-	
-	# Add the test target
-	pwnt_add_test(${PROJECT_TARGET} ${PROJECT_COMPONENT_DEPENDENCIES})
+	pwnt_add_dependencies(${PROJECT_TARGET} ${PROJECT_COMPONENT_DEPENDENCIES})	
 
+	# Add the environment API libs to the linker input
+	if(WIN32)
+		find_library(IPHLPAPI_LIB iphlpapi DOC "iphlpapi library")
+		find_library(WS2_32_LIB ws2_32 DOC "ws2_32 library")
+		target_link_libraries(${PROJECT_TARGET} ${IPHLPAPI_LIB} ${WS2_32_LIB})
+	endif()
+	
 	# Install
 	if(PWNT_INSTALL AND PROJECT_TARGET_INSTALL_COMPONENT) 
 		install(TARGETS ${PROJECT_TARGET} RUNTIME DESTINATION "bin/" LIBRARY DESTINATION "lib/" COMPONENT ${PROJECT_COMPONENT_INSTALL_COMPONENT})

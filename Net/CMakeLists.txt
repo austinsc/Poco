@@ -1,1 +1,1 @@
-pwnt_add_poco_target(STATIC_LIBRARY DEPENDENCIES Foundation INSTALL_COMPONENT Poco)
+pwnt_add_poco_target(SHARED_LIBRARY DEPENDENCIES Foundation INSTALL_COMPONENT Poco)
