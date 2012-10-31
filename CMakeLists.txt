@@ -9,6 +9,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 # Bind the bootstrap script arguments
 include(PwntBootstrap)
+set(PWNT_PROJECT_INCLUDE_DIR_NAME "include")
 
 # Special Poco crap
 add_definitions(-DPOCO_NO_AUTOMATIC_LIBS -DPCRE_STATIC)
