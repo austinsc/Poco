@@ -12,7 +12,7 @@ include(PwntBootstrap)
 set(PWNT_PROJECT_INCLUDE_DIR_NAME "include")
 
 # Special Poco crap
-add_definitions(-DPOCO_NO_AUTOMATIC_LIBS -DPCRE_STATIC)
+add_definitions(-DPOCO_NO_AUTOMATIC_LIBS -DPCRE_STATIC -DPOCO_NO_UNWINDOWS)
 
 macro(pwnt_add_poco_target)	
 	get_filename_component(PROJECT_TARGET ${CMAKE_CURRENT_SOURCE_DIR} NAME)
